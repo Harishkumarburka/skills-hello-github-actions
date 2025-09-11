@@ -20,19 +20,16 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v3
 
-    - name: Install Databricks CLI
+    - name: Install New Databricks CLI
       run: |
-        pip install databricks-cli
+        pip install databricks-cli --upgrade
 
-    - name: Configure Databricks CLI
+    - name: Authenticate with Databricks
       env:
         DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
         DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
       run: |
-        mkdir -p ~/.databricks
-        echo "[DEFAULT]" > ~/.databricks/config
-        echo "host = $DATABRICKS_HOST" >> ~/.databricks/config
-        echo "token = $DATABRICKS_TOKEN" >> ~/.databricks/config
+        databricks auth login --host $DATABRICKS_HOST --token $DATABRICKS_TOKEN
 
     - name: Check and Create Schema
       env:
@@ -40,12 +37,13 @@ jobs:
       run: |
         SCHEMA_NAME="${{ github.event.inputs.schema_name }}"
         CATALOG_NAME="suresh_hus"
-        EXISTS=$(databricks sql query --warehouse-id $WAREHOUSE_ID \
+
+        EXISTS=$(databricks sql warehouses query --warehouse-id $WAREHOUSE_ID \
           --sql "SHOW SCHEMAS IN $CATALOG_NAME" | grep $SCHEMA_NAME || true)
 
         if [ -z "$EXISTS" ]; then
           echo "Creating schema $SCHEMA_NAME..."
-          databricks sql query --warehouse-id $WAREHOUSE_ID \
+          databricks sql warehouses query --warehouse-id $WAREHOUSE_ID \
             --sql "CREATE SCHEMA $CATALOG_NAME.$SCHEMA_NAME"
         else
           echo "Schema $SCHEMA_NAME already exists."
@@ -58,6 +56,6 @@ jobs:
         SQL_PATH="${{ github.event.inputs.sql_path }}"
         for file in $SQL_PATH/*.sql; do
           echo "Executing $file..."
-          databricks sql query --warehouse-id $WAREHOUSE_ID \
+          databricks sql warehouses query --warehouse-id $WAREHOUSE_ID \
             --sql "$(cat $file)"
         done
