@@ -1,42 +1,63 @@
 name: Deploy SQL to Databricks
 
 on:
-  push:
-    branches:
-      - main
+  workflow_dispatch:
+    inputs:
+      schema_name:
+        description: 'Schema name to check/create'
+        required: true
+        default: 'my_schema'
+      sql_path:
+        description: 'Path to SQL files'
+        required: true
+        default: 'sql'
 
 jobs:
-  deploy-sql:
+  deploy:
     runs-on: ubuntu-latest
 
     steps:
     - name: Checkout code
       uses: actions/checkout@v3
 
-    - name: Set up Databricks CLI
+    - name: Install Databricks CLI
       run: |
         pip install databricks-cli
-        databricks configure --token <<EOF
-        https://<your-databricks-instance>
-        ${{ secrets.DATABRICKS_TOKEN }}
-        EOF
 
-    - name: Check if schema exists
+    - name: Configure Databricks CLI
+      env:
+        DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
+        DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
       run: |
-        SCHEMA_EXISTS=$(databricks sql query --warehouse-id <warehouse-id> \
-          --sql "SHOW SCHEMAS IN suresh_hus" | grep my_schema || true)
-        if [ -z "$SCHEMA_EXISTS" ]; then
-          echo "Creating schema..."
-          databricks sql query --warehouse-id <warehouse-id> \
-            --sql "CREATE SCHEMA suresh_hus.my_schema"
+        mkdir -p ~/.databricks
+        echo "[DEFAULT]" > ~/.databricks/config
+        echo "host = $DATABRICKS_HOST" >> ~/.databricks/config
+        echo "token = $DATABRICKS_TOKEN" >> ~/.databricks/config
+
+    - name: Check and Create Schema
+      env:
+        WAREHOUSE_ID: ${{ secrets.WAREHOUSE_ID }}
+      run: |
+        SCHEMA_NAME="${{ github.event.inputs.schema_name }}"
+        CATALOG_NAME="suresh_hus"
+        EXISTS=$(databricks sql query --warehouse-id $WAREHOUSE_ID \
+          --sql "SHOW SCHEMAS IN $CATALOG_NAME" | grep $SCHEMA_NAME || true)
+
+        if [ -z "$EXISTS" ]; then
+          echo "Creating schema $SCHEMA_NAME..."
+          databricks sql query --warehouse-id $WAREHOUSE_ID \
+            --sql "CREATE SCHEMA $CATALOG_NAME.$SCHEMA_NAME"
         else
-          echo "Schema already exists."
+          echo "Schema $SCHEMA_NAME already exists."
         fi
 
-    - name: Deploy SQL files
+    - name: Deploy SQL Files
+      env:
+        WAREHOUSE_ID: ${{ secrets.WAREHOUSE_ID }}
       run: |
-        for file in sql/*.sql; do
-          echo "Running $file..."
-          databricks sql query --warehouse-id <warehouse-id> \
+        SQL_PATH="${{ github.event.inputs.sql_path }}"
+        for file in $SQL_PATH/*.sql; do
+          echo "Executing $file..."
+          databricks sql query --warehouse-id $WAREHOUSE_ID \
             --sql "$(cat $file)"
         done
