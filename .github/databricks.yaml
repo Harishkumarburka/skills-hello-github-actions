@@ -1,0 +1,42 @@
+name: Deploy SQL to Databricks
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy-sql:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Set up Databricks CLI
+      run: |
+        pip install databricks-cli
+        databricks configure --token <<EOF
+        https://<your-databricks-instance>
+        ${{ secrets.DATABRICKS_TOKEN }}
+        EOF
+
+    - name: Check if schema exists
+      run: |
+        SCHEMA_EXISTS=$(databricks sql query --warehouse-id <warehouse-id> \
+          --sql "SHOW SCHEMAS IN suresh_hus" | grep my_schema || true)
+        if [ -z "$SCHEMA_EXISTS" ]; then
+          echo "Creating schema..."
+          databricks sql query --warehouse-id <warehouse-id> \
+            --sql "CREATE SCHEMA suresh_hus.my_schema"
+        else
+          echo "Schema already exists."
+        fi
+
+    - name: Deploy SQL files
+      run: |
+        for file in sql/*.sql; do
+          echo "Running $file..."
+          databricks sql query --warehouse-id <warehouse-id> \
+            --sql "$(cat $file)"
+        done
