@@ -20,16 +20,16 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v3
 
-    - name: Install New Databricks CLI
+    - name: Install new Databricks CLI
       run: |
-        pip install databricks-cli --upgrade
+        pip install databricks
 
     - name: Authenticate with Databricks
       env:
         DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
         DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
       run: |
-        databricks auth login --host $DATABRICKS_HOST --token $DATABRICKS_TOKEN
+        databricks configure --host $DATABRICKS_HOST --token <<< "$DATABRICKS_TOKEN"
 
     - name: Check and Create Schema
       env:
