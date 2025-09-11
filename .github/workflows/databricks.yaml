@@ -23,13 +23,14 @@ jobs:
     - name: Install new Databricks CLI
       run: |
         pip install databricks
+        echo "export PATH=$HOME/.local/bin:\$PATH" >> $GITHUB_ENV
 
     - name: Authenticate with Databricks
       env:
         DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
         DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
       run: |
-        databricks configure --host $DATABRICKS_HOST --token <<< "$DATABRICKS_TOKEN"
+        ~/.local/bin/databricks configure --host $DATABRICKS_HOST --token <<< "$DATABRICKS_TOKEN"
 
     - name: Check and Create Schema
       env:
@@ -38,12 +39,12 @@ jobs:
         SCHEMA_NAME="${{ github.event.inputs.schema_name }}"
         CATALOG_NAME="suresh_hus"
 
-        EXISTS=$(databricks sql warehouses query --warehouse-id $WAREHOUSE_ID \
+        EXISTS=$(~/.local/bin/databricks sql warehouses query --warehouse-id $WAREHOUSE_ID \
           --sql "SHOW SCHEMAS IN $CATALOG_NAME" | grep $SCHEMA_NAME || true)
 
         if [ -z "$EXISTS" ]; then
           echo "Creating schema $SCHEMA_NAME..."
-          databricks sql warehouses query --warehouse-id $WAREHOUSE_ID \
+          ~/.local/bin/databricks sql warehouses query --warehouse-id $WAREHOUSE_ID \
             --sql "CREATE SCHEMA $CATALOG_NAME.$SCHEMA_NAME"
         else
           echo "Schema $SCHEMA_NAME already exists."
@@ -56,6 +57,6 @@ jobs:
         SQL_PATH="${{ github.event.inputs.sql_path }}"
         for file in $SQL_PATH/*.sql; do
           echo "Executing $file..."
-          databricks sql warehouses query --warehouse-id $WAREHOUSE_ID \
+          ~/.local/bin/databricks sql warehouses query --warehouse-id $WAREHOUSE_ID \
             --sql "$(cat $file)"
         done
